@@ -1,0 +1,32 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+
+# Logs
+logs/*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model weights (large files)
+results/*/model_weights/*.h5
+results/*/model_weights/*.keras
+
+# Data
+data/

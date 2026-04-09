@@ -1,0 +1,749 @@
+{
+  "project_name": "L42 — AutoEncoder Confusion: Latent Space Distortion Study",
+  "author": "Hadar Wayn",
+  "course": "AI Developer Expert — Lesson 42",
+  "instructor": "Dr. Yoram Segal",
+  "github_repo": "https://github.com/hadarwayn/L42-AutoEncoder-Confusion-Keras-Studies.git",
+  "total_estimated_hours": 18.5,
+
+  "execution_order_MANDATORY": {
+    "rule": "LOCAL RUNS FIRST — Colab notebook is built only after local succeeds",
+    "step_1_local": "Run python main.py on local machine (UV virtual environment). All code must work and all results must be generated locally before touching Colab.",
+    "step_2_colab": "Build the Colab notebook as a mirror of the local pipeline. The notebook replicates every phase, adds GPU acceleration, and displays results inline.",
+    "why": "Running locally first means you understand every step before presenting it on Colab. The Colab notebook is the polished, GPU-powered showcase of what you already proved works on your own machine."
+  },
+
+  "environments": ["1_local_uv_FIRST", "2_google_colab_SECOND"],
+  "experiments": ["A: Gender Faces (Human Faces Dataset)", "B: Fashion Topology (Fashion-MNIST Sneakers→Boots)"],
+
+  "phases": [
+
+    {
+      "phase": "1_project_setup",
+      "phase_title": "Project Scaffolding & Environment",
+      "tasks": [
+        {
+          "id": "1.1",
+          "name": "Create full directory structure",
+          "priority": "critical",
+          "estimated_hours": 0.25,
+          "dependencies": [],
+          "files_to_create": [
+            "README.md",
+            "main.py",
+            "requirements.txt",
+            ".gitignore",
+            ".env.example",
+            "venv/.gitkeep",
+            "src/__init__.py",
+            "src/utils/__init__.py",
+            "experiments/__init__.py",
+            "docs/PRD.md",
+            "docs/tasks.json",
+            "results/experiment_a/.gitkeep",
+            "results/experiment_b/.gitkeep",
+            "logs/config/log_config.json",
+            "logs/.gitkeep"
+          ],
+          "acceptance_criteria": [
+            "All directories exist",
+            "All __init__.py files present",
+            "venv/.gitkeep contains UV setup instructions"
+          ]
+        },
+        {
+          "id": "1.2",
+          "name": "Set up UV virtual environment and requirements.txt",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["1.1"],
+          "files_to_create": ["requirements.txt"],
+          "acceptance_criteria": [
+            "uv venv creates .venv successfully",
+            "uv pip install -r requirements.txt completes without errors",
+            "python -c 'import tensorflow, keras, numpy, matplotlib' exits with code 0",
+            "requirements.txt has exact pinned versions (e.g., tensorflow==2.16.1)"
+          ],
+          "key_packages": [
+            "tensorflow>=2.13.0",
+            "keras>=3.0.0",
+            "numpy>=1.24.0",
+            "matplotlib>=3.7.0",
+            "scikit-learn>=1.3.0",
+            "pillow>=10.0.0",
+            "tqdm>=4.65.0",
+            "kaggle>=1.6.0",
+            "python-dotenv>=1.0.0"
+          ]
+        },
+        {
+          "id": "1.3",
+          "name": "Implement ring buffer logging system",
+          "priority": "high",
+          "estimated_hours": 0.5,
+          "dependencies": ["1.1"],
+          "files_to_create": ["src/utils/logger.py", "logs/config/log_config.json"],
+          "acceptance_criteria": [
+            "logger.py is under 150 lines",
+            "RingBufferHandler rotates files at max_lines=1000",
+            "Deletes oldest log when max_files=5 is exceeded",
+            "setup_logger('l42') returns working logger"
+          ]
+        },
+        {
+          "id": "1.4",
+          "name": "Implement relative path utilities",
+          "priority": "critical",
+          "estimated_hours": 0.25,
+          "dependencies": ["1.1"],
+          "files_to_create": ["src/utils/paths.py"],
+          "acceptance_criteria": [
+            "get_project_root() returns correct path from any working directory",
+            "get_results_dir('experiment_a') creates directory if missing",
+            "NO hardcoded absolute paths anywhere in the file",
+            "Works on Windows WSL and Linux/Mac"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "2_data_loading",
+      "phase_title": "Dataset Loading & Preprocessing",
+      "tasks": [
+        {
+          "id": "2.1",
+          "name": "Implement Fashion-MNIST loader (Experiment B)",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["1.2", "1.4"],
+          "files_to_create": ["src/utils/data_loader.py"],
+          "acceptance_criteria": [
+            "load_fashion_mnist() returns (x_sneakers_train, x_sneakers_val, x_boots_test)",
+            "x_sneakers_train contains ONLY class 7 (Sneaker) images — zero boots in training set",
+            "x_boots_test contains exactly 20 randomly selected class 9 (Ankle Boot) images",
+            "Random selection uses numpy.random.seed(42) for reproducibility",
+            "All pixel values normalized to [0, 1] range using NumPy vectorization (no loops)",
+            "Images reshaped to (N, 28, 28, 1) for Conv2D compatibility",
+            "Function prints: 'Training samples: X sneakers | Test samples: 20 ankle boots'"
+          ]
+        },
+        {
+          "id": "2.2",
+          "name": "Implement Human Faces Dataset loader (Experiment A)",
+          "priority": "critical",
+          "estimated_hours": 1.5,
+          "dependencies": ["1.2", "1.4"],
+          "files_to_create": [],
+          "notes": "Add to data_loader.py (extend from 2.1)",
+          "acceptance_criteria": [
+            "load_human_faces() returns (x_male_train, x_male_val, x_female_test)",
+            "Supports TWO loading paths: (1) Kaggle API download, (2) local data/ folder fallback",
+            "x_female_test contains exactly 20 randomly selected female face images (seed=42)",
+            "x_male_train contains ONLY male faces — zero female faces in training set",
+            "All images resized to 64×64 RGB using PIL (NumPy batch resize, no Python loop)",
+            "Pixel values normalized to [0, 1]",
+            "If Kaggle download fails: print clear error message with manual download instructions",
+            "Function prints dataset statistics: count per gender, split sizes"
+          ]
+        },
+        {
+          "id": "2.3",
+          "name": "Write data verification script",
+          "priority": "high",
+          "estimated_hours": 0.25,
+          "dependencies": ["2.1", "2.2"],
+          "files_to_create": [],
+          "notes": "Add verify_data() to data_loader.py",
+          "acceptance_criteria": [
+            "verify_data() checks that training set contains ZERO contamination from test domain",
+            "Raises ValueError with clear message if contamination found",
+            "Prints sample counts and pixel value statistics (min, max, mean)"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "3_autoencoder_architecture",
+      "phase_title": "AutoEncoder Model Construction",
+      "tasks": [
+        {
+          "id": "3.1",
+          "name": "Build configurable Convolutional AutoEncoder with BatchNorm",
+          "priority": "critical",
+          "estimated_hours": 2.0,
+          "dependencies": ["1.2"],
+          "files_to_create": ["src/autoencoder.py"],
+          "acceptance_criteria": [
+            "autoencoder.py is under 150 lines",
+            "build_autoencoder(config) returns dict: {'autoencoder': model, 'encoder': encoder_model, 'decoder': decoder_model}",
+            "Architecture matches class diagram: Input→Enc1(512)→Enc2(256)→Enc3(128)→Bottleneck→Dec1(128)→Dec2(256)→Dec3(512)→Output",
+            "Encoder uses Conv2D + BatchNormalization + ReLU + MaxPooling2D (downsampling)",
+            "Encoder ends with: Flatten → Dense(latent_dim) to produce latent vector",
+            "Decoder starts with: Dense(latent_dim) → Reshape, then UpSampling2D + Conv2DTranspose + BatchNormalization + ReLU",
+            "MANDATORY: BatchNormalization after EVERY Conv2D and Conv2DTranspose — prevents blurry output",
+            "Final decoder layer uses Sigmoid activation (outputs in [0,1])",
+            "Latent dimension: config['latent_dim'] — default 128 for faces, 64 for Fashion-MNIST",
+            "model.summary() prints correctly",
+            "Works for both 28×28 grayscale (Exp B) and 64×64 RGB (Exp A) via config['input_shape']",
+            "Encoder sub-model: input=full image, output=latent vector (Dense layer output)",
+            "Decoder sub-model: input=latent vector, output=reconstructed image",
+            "Adam optimizer with lr=0.001 (NOT SGD)"
+          ],
+          "config_example": {
+            "input_shape": [64, 64, 3],
+            "filters": [32, 64, 128],
+            "latent_dim": 128,
+            "loss": "mse",
+            "optimizer": "adam",
+            "learning_rate": 0.001
+          },
+          "why_batchnorm": "BatchNorm normalizes layer inputs, stabilizes gradients, prevents dead ReLU neurons. Without it, the network produces the muddy gray blurs seen in the reference L42 projects."
+        },
+        {
+          "id": "3.2",
+          "name": "Validate architecture with dummy forward pass",
+          "priority": "critical",
+          "estimated_hours": 0.25,
+          "dependencies": ["3.1"],
+          "files_to_create": [],
+          "acceptance_criteria": [
+            "numpy.zeros((1, 64, 64, 3)) passes through autoencoder without shape error",
+            "numpy.zeros((1, 28, 28, 1)) passes through autoencoder without shape error",
+            "Output shape equals input shape for both experiments",
+            "Encoder output shape is (1, bottleneck_dim)"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "4_training",
+      "phase_title": "Model Training & Checkpointing",
+      "tasks": [
+        {
+          "id": "4.1",
+          "name": "Implement training pipeline with checkpointing",
+          "priority": "critical",
+          "estimated_hours": 2.0,
+          "dependencies": ["3.1", "2.1", "2.2"],
+          "files_to_create": ["src/trainer.py"],
+          "acceptance_criteria": [
+            "trainer.py is under 150 lines",
+            "train_autoencoder(autoencoder, x_train, x_val, config) returns history dict",
+            "Uses ModelCheckpoint: saves best weights to results/{experiment}/model_weights/best_weights.h5",
+            "Uses EarlyStopping with patience=10 (prevents overfitting)",
+            "Uses ReduceLROnPlateau for learning rate scheduling",
+            "History dict contains: {'train_loss': [...], 'val_loss': [...], 'epochs_run': N}",
+            "Prints progress: epoch number, train loss, val loss after each epoch",
+            "Training uses x_train as BOTH input AND target (autoencoder goal = reconstruct input)",
+            "Batch size is a config parameter (default 32, can be overridden for Colab GPU)"
+          ]
+        },
+        {
+          "id": "4.5",
+          "name": "Explicit trained model export (SavedModel + H5 formats)",
+          "priority": "critical",
+          "estimated_hours": 0.25,
+          "dependencies": ["4.3", "4.4"],
+          "files_to_create": [],
+          "notes": "Add save_model() call to trainer.py after training completes",
+          "acceptance_criteria": [
+            "Experiment A: model saved to results/experiment_a/model_weights/autoencoder_final.h5",
+            "Experiment A: encoder sub-model saved to results/experiment_a/model_weights/encoder_final.h5",
+            "Experiment B: same structure under results/experiment_b/model_weights/",
+            "Saved models are loadable: keras.models.load_model(path) runs without error",
+            "Loading + inference produces identical output to training-time inference",
+            "README documents how to load and reuse the trained models"
+          ]
+        },
+          "priority": "high",
+          "estimated_hours": 0.5,
+          "dependencies": ["4.1"],
+          "files_to_create": [],
+          "notes": "Add detect_hardware() to trainer.py",
+          "acceptance_criteria": [
+            "detect_hardware() returns dict: {'device': 'GPU/CPU', 'gpu_name': str, 'vram_gb': float, 'recommended_batch_size': int}",
+            "Batch size logic: CPU→32, T4/P4→64, P100/V100/A100→128",
+            "Prints hardware report table",
+            "Works in local environment (no Colab-specific imports)"
+          ]
+        },
+        {
+          "id": "4.3",
+          "name": "Train Experiment B — Fashion-MNIST (Sneakers only)",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["4.1", "2.1"],
+          "files_to_create": ["experiments/experiment_b_fashion.py"],
+          "acceptance_criteria": [
+            "experiment_b_fashion.py is under 150 lines",
+            "Runs full pipeline: load→build→train→save",
+            "Final validation loss < 0.02 (BCE)",
+            "Training converges (loss decreases visibly over epochs — not flat from epoch 1)",
+            "Weights saved to results/experiment_b/model_weights/best_weights.h5",
+            "Training time < 10 minutes on local CPU"
+          ]
+        },
+        {
+          "id": "4.4",
+          "name": "Train Experiment A — Human Faces (Male only)",
+          "priority": "critical",
+          "estimated_hours": 1.0,
+          "dependencies": ["4.1", "2.2"],
+          "files_to_create": ["experiments/experiment_a_faces.py"],
+          "acceptance_criteria": [
+            "experiment_a_faces.py is under 150 lines",
+            "Runs full pipeline: load→build→train→save",
+            "Final validation loss < 0.05 (MSE)",
+            "Weights saved to results/experiment_a/model_weights/best_weights.h5",
+            "Training time < 30 minutes on local CPU (with early stopping)"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "5_confusion_phase",
+      "phase_title": "OoD Confusion Inference",
+      "tasks": [
+        {
+          "id": "5.1",
+          "name": "Implement OoD inference pipeline",
+          "priority": "critical",
+          "estimated_hours": 1.0,
+          "dependencies": ["4.3", "4.4"],
+          "files_to_create": ["src/confusion.py"],
+          "acceptance_criteria": [
+            "confusion.py is under 150 lines",
+            "run_confusion(autoencoder, x_ood_test) returns dict with: {'originals', 'reconstructed', 'diff_maps', 'mse_per_image', 'mean_mse'}",
+            "diff_maps = numpy.abs(originals - reconstructed) — pure NumPy, no loops",
+            "mse_per_image computed via numpy.mean((originals - reconstructed)**2, axis=(1,2,3))",
+            "Also runs on 20 in-distribution samples for comparison baseline",
+            "Prints: 'OoD mean MSE: X.XXXX | In-distribution mean MSE: X.XXXX | Ratio: X.X×'"
+          ]
+        },
+        {
+          "id": "5.2",
+          "name": "Verify confusion effect is visible",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["5.1"],
+          "files_to_create": [],
+          "acceptance_criteria": [
+            "OoD mean MSE is measurably HIGHER than in-distribution MSE (at least 1.5× ratio)",
+            "Visual inspection: at least 10 of 20 OoD reconstructions show visible structural changes",
+            "If confusion is NOT visible: investigate and fix (likely insufficient training or too-shallow architecture)"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "6_visualization",
+      "phase_title": "Results Visualization & Saving",
+      "tasks": [
+        {
+          "id": "6.1",
+          "name": "Plot 1: Convergence curves",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["4.3", "4.4"],
+          "files_to_create": ["src/visualizer.py"],
+          "acceptance_criteria": [
+            "plot_convergence(history, output_path) saves PNG at 300 DPI",
+            "Shows training loss AND validation loss on same axes",
+            "X-axis: 'Epoch', Y-axis: 'Loss (MSE/BCE)'",
+            "Title: 'AutoEncoder Learning Curve — [Experiment Name]'",
+            "Subtitle: 'Loss decreasing = network is learning to reconstruct [domain] images'",
+            "Both experiments produce this plot"
+          ]
+        },
+        {
+          "id": "6.2",
+          "name": "Plot 2: In-distribution reconstruction",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["5.1"],
+          "notes": "Add to visualizer.py",
+          "acceptance_criteria": [
+            "plot_in_distribution(originals, reconstructed, output_path) saves PNG",
+            "Shows 5 pairs: [Original | Reconstructed] side by side",
+            "Title: 'Network Works Correctly on Training Domain'",
+            "Subtitle: 'These are the images the network learned — it reconstructs them accurately'",
+            "MSE shown below each pair"
+          ]
+        },
+        {
+          "id": "6.3",
+          "name": "Plot 3: OoD confusion grid (20 images)",
+          "priority": "critical",
+          "estimated_hours": 1.0,
+          "dependencies": ["5.1"],
+          "notes": "Add to visualizer.py",
+          "acceptance_criteria": [
+            "plot_confusion_grid(originals, reconstructed, diff_maps, mse_list, output_path) saves PNG",
+            "Grid layout: 20 rows × 3 columns = [Original | Reconstructed | Difference Map]",
+            "Difference map uses 'hot' colormap (bright = large distortion)",
+            "MSE value shown for each row",
+            "Title: 'The Confusion Effect — Network Hallucinates Training-Domain Features'",
+            "Column headers: 'Original Input (OoD)' | 'Reconstructed Output' | 'Distortion Map'",
+            "Figure size: (12, 50) for readability of all 20 images"
+          ]
+        },
+        {
+          "id": "6.4",
+          "name": "Plot 4: Top-5 distortion highlights",
+          "priority": "high",
+          "estimated_hours": 0.75,
+          "dependencies": ["5.1"],
+          "notes": "Add to visualizer.py",
+          "acceptance_criteria": [
+            "plot_distortion_highlights(originals, reconstructed, mse_list, experiment_name, output_path)",
+            "Shows top 5 images sorted by HIGHEST MSE (most confused)",
+            "Each image pair has annotation text explaining the specific distortion",
+            "Experiment A annotations: 'Jawline squared', 'Facial hair artifact', etc.",
+            "Experiment B annotations: 'Boot shaft chopped', 'Profile compressed', etc.",
+            "Title: 'Top 5 Most Confused Reconstructions'"
+          ]
+        },
+        {
+          "id": "6.5",
+          "name": "Plot 5: Error distribution comparison",
+          "priority": "high",
+          "estimated_hours": 0.5,
+          "dependencies": ["5.1"],
+          "notes": "Add to visualizer.py. visualizer.py total must stay under 150 lines — split if needed.",
+          "acceptance_criteria": [
+            "plot_error_distribution(in_dist_mse, ood_mse, output_path) saves PNG",
+            "Overlapping histograms: in-distribution (blue) vs OoD (red)",
+            "Vertical dashed line at mean of each distribution",
+            "X-axis: 'Reconstruction MSE', Y-axis: 'Count'",
+            "Title: 'Reconstruction Error: Normal vs Confused'",
+            "Subtitle: 'OoD images have higher error — the network struggles with unfamiliar input'",
+            "Legend shows mean values"
+          ]
+        },
+        {
+          "id": "6.6",
+          "name": "Plot 6 (Optional): PCA Latent Space Visualization",
+          "priority": "medium",
+          "estimated_hours": 0.75,
+          "dependencies": ["5.1"],
+          "notes": "Add to src/visualizer_latent.py (separate file to stay under 150-line limit)",
+          "files_to_create": ["src/visualizer_latent.py"],
+          "acceptance_criteria": [
+            "Encode all training images through the encoder sub-model to get latent vectors",
+            "Encode 20 OoD test images through the same encoder",
+            "Apply PCA (sklearn.decomposition.PCA, n_components=2) to reduce latent vectors to 2D",
+            "Scatter plot: in-distribution points = blue, OoD points = red stars",
+            "Title: 'Latent Space: Where OoD Images Land'",
+            "Subtitle: 'Red stars = OoD inputs forced into wrong region of the latent space'",
+            "Include convex hull or cluster ellipse around each group to show separation",
+            "Saved as results/experiment_X/latent_space_pca.png at 300 DPI",
+            "If PCA shows clear separation between blue and red clusters = strong proof of confusion effect",
+            "visualizer_latent.py is under 150 lines"
+          ],
+          "educational_value": "This is the geometric proof of why confusion happens. A visitor can see: the red dots (OoD) land in the wrong neighborhood of the latent map, so the decoder reconstructs them using the wrong blueprint."
+        },
+        {
+          "id": "6.6",
+          "name": "Run all visualizations for both experiments",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["6.1", "6.2", "6.3", "6.4", "6.5"],
+          "acceptance_criteria": [
+            "results/experiment_a/ contains 5 PNG files",
+            "results/experiment_b/ contains 5 PNG files",
+            "All images open and display correctly",
+            "All PNG files are > 100KB (proving proper 300 DPI save)"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "7_main_entry_point",
+      "phase_title": "main.py Orchestration",
+      "tasks": [
+        {
+          "id": "7.1",
+          "name": "Write main.py entry point",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["5.1", "6.6"],
+          "files_to_create": ["main.py"],
+          "acceptance_criteria": [
+            "main.py is under 150 lines",
+            "python main.py runs both experiments end-to-end",
+            "python main.py --experiment a runs only Experiment A",
+            "python main.py --experiment b runs only Experiment B",
+            "Prints clear section headers for each phase",
+            "Final output: 'All results saved to results/ directory'"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "8_colab_notebook",
+      "phase_title": "Google Colab Notebook — Built AFTER Local Succeeds",
+      "phase_note": "⚠️ DO NOT START THIS PHASE until all local phases (1–7) are complete and verified. The notebook is a mirror of the local pipeline — you can only mirror something that already works.",
+      "tasks": [
+        {
+          "id": "8.1",
+          "name": "Create complete Colab notebook mirroring the local pipeline",
+          "priority": "critical",
+          "estimated_hours": 3.0,
+          "dependencies": ["7.1"],
+          "prerequisite": "Local main.py must run successfully end-to-end before this task begins",
+          "files_to_create": ["notebooks/L42_AutoEncoder_Colab.ipynb"],
+          "acceptance_criteria": [
+            "Notebook is valid JSON (.ipynb format)",
+            "Cell 1 (Markdown): Course banner with 'Author: Hadar Wayn', project title, what this notebook demonstrates",
+            "Cell 2 (Code): GPU detection — runs !nvidia-smi, detects GPU type, recommends batch size",
+            "Cell 3 (Code): Package installation — !pip install all required packages",
+            "Cell 4 (Code): Google Drive mount — mounts drive, creates /content/drive/MyDrive/L42_results/ folder",
+            "Cell 5 (Markdown): Plain-English explanation of AutoEncoders with the same artist analogy from the README",
+            "Cells 6–10: Experiment B (Fashion-MNIST) — one cell per phase, same phase names as local pipeline",
+            "Cells 11–15: Experiment A (Human Faces) — same structure",
+            "Cell 16: Training time comparison table — Local CPU time vs Colab GPU time side by side",
+            "Cell 17: Final summary — display all result images inline with the same captions as the README",
+            "EVERY code cell is preceded by a Markdown cell that explains: what this cell does, why this step exists, what output to expect",
+            "All 6 visualizations per experiment displayed inline with plt.show()",
+            "Notebook structure matches local pipeline phase-for-phase — a reader can compare notebook cells directly to local Python files"
+          ]
+        },
+        {
+          "id": "8.2",
+          "name": "Verify notebook runs top-to-bottom without errors",
+          "priority": "critical",
+          "estimated_hours": 1.0,
+          "dependencies": ["8.1"],
+          "acceptance_criteria": [
+            "All cells execute in sequence with no unhandled exceptions",
+            "GPU detection cell runs even on CPU-only runtime",
+            "Fashion-MNIST loads without manual download (built-in Keras)",
+            "Human Faces section: graceful error handling if Kaggle API not configured",
+            "All 10 result images display inline in the notebook",
+            "Notebook re-runs cleanly after Runtime > Restart and run all"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "9_readme_documentation",
+      "phase_title": "README.md — The Project Showcase",
+      "tasks": [
+        {
+          "id": "9.1",
+          "name": "Write comprehensive README.md",
+          "priority": "critical",
+          "estimated_hours": 2.0,
+          "dependencies": ["8.2", "6.6"],
+          "files_to_create": ["README.md"],
+          "acceptance_criteria": [
+            "Passes 15-year-old test: AutoEncoder explained with analogy (e.g., artist who only learned one style)",
+            "Section: Abstract (2-3 sentences, clear and non-technical)",
+            "Section: The Two Experiments — clearly explains Experiment A and B with real-world meaning",
+            "Section: Applications & Use Cases (at least 3 scenarios)",
+            "Section: How AutoEncoders Work (diagram-style markdown table + step-by-step)",
+            "Section: UV Virtual Environment Setup (full instructions for WSL and PowerShell)",
+            "Section: Installation (clone → setup → run)",
+            "Section: How to Run (local + Colab link)",
+            "Section: Code Files Summary (table: filename | description | lines) — all files under 150 lines",
+            "Section: Results — embeds ALL 10 PNG visualizations with plain-English explanations",
+            "Section: What I Learned (3+ technical insights + 3+ real-world connections)",
+            "Section: GitHub upload instructions",
+            "All embedded images use relative paths: results/experiment_a/...",
+            "README is engaging — a recruiter can understand the project in 2 minutes"
+          ]
+        }
+      ]
+    },
+
+    {
+      "phase": "10_testing_and_qa",
+      "phase_title": "Testing, QA & Final Checks",
+      "tasks": [
+        {
+          "id": "10.1",
+          "name": "Fresh environment test (local)",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["9.1"],
+          "acceptance_criteria": [
+            "Delete .venv, recreate with 'uv venv', install with 'uv pip install -r requirements.txt'",
+            "python main.py --experiment b completes successfully",
+            "results/experiment_b/ contains 5 PNG files",
+            "No 'module not found' errors"
+          ]
+        },
+        {
+          "id": "10.2",
+          "name": "Code quality audit",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["9.1"],
+          "acceptance_criteria": [
+            "ALL Python files are under 150 lines (verify with: wc -l src/*.py)",
+            "No hardcoded absolute paths anywhere",
+            "No raw Python loops over numpy arrays",
+            "All functions have type hints and docstrings",
+            "No secrets or API keys in committed code"
+          ]
+        },
+        {
+          "id": "10.3",
+          "name": "Visual QA — confusion effect verification",
+          "priority": "critical",
+          "estimated_hours": 0.5,
+          "dependencies": ["10.1"],
+          "acceptance_criteria": [
+            "Experiment B (Boots→Sneakers): at least 15 of 20 boots show upper shaft compression",
+            "Experiment A (Female→Male model): at least 10 of 20 female faces show visible structural changes",
+            "Confusion grid PNG is clear and not blurry (300 DPI confirmed)",
+            "OoD MSE is at least 1.5× higher than in-distribution MSE for both experiments"
+          ]
+        },
+        {
+          "id": "10.4",
+          "name": "Git repository setup and GitHub push",
+          "priority": "high",
+          "estimated_hours": 0.25,
+          "dependencies": ["10.3"],
+          "acceptance_criteria": [
+            "git init, git add ., git commit -m 'Initial commit: L42 AutoEncoder Confusion'",
+            ".gitignore excludes: .venv/, __pycache__/, *.pyc, .env, logs/*.log",
+            "venv/.gitkeep IS committed",
+            "results/ PNG files ARE committed (they are the deliverable)",
+            "model_weights/ may be excluded if files are too large (>100MB)",
+            "git push -u origin main succeeds",
+            "README displays correctly on GitHub with all images visible"
+          ]
+        }
+      ]
+    }
+  ],
+
+  "risks_and_mitigations": {
+    "risk_1_blurry_output": {
+      "symptoms": "Reconstructed images are smeared gray blobs with no visible structure",
+      "root_causes": ["Architecture too shallow", "No BatchNorm", "Too few epochs", "Flat loss curve = network not learning"],
+      "mitigations": [
+        "BatchNormalization after EVERY Conv2D layer (mandatory in task 3.1)",
+        "Latent dim must be 64-128, not 8 or 16",
+        "Minimum 30 epochs locally, 50 on Colab",
+        "Verify loss decreases — if flat from epoch 1, reduce learning rate",
+        "Use Adam optimizer lr=0.001"
+      ]
+    },
+    "risk_2_no_visible_confusion": {
+      "symptoms": "OoD images reconstruct correctly — no distortion visible",
+      "root_causes": ["Training set contaminated with OoD images", "Latent dim too large", "Inconsistent normalization"],
+      "mitigations": [
+        "Verify training set purity (task 2.3 data verification)",
+        "Reduce latent_dim to force stronger compression bias",
+        "Ensure both domains normalized identically to [0,1]",
+        "Double-check Fashion-MNIST label filtering: 7=Sneaker only in train, 9=Boot only in test"
+      ]
+    },
+    "risk_3_kaggle_auth_failure": {
+      "symptoms": "kaggle.api raises authentication error",
+      "mitigation": "Graceful fallback to local data/ folder — instructions in README"
+    },
+    "risk_4_colab_oom": {
+      "symptoms": "CUDA out-of-memory during training",
+      "mitigation": "GPU detection auto-adjusts batch size; fallback: reduce face image size to 32x32"
+    }
+  },
+
+  "extensions_optional": [
+    {
+      "name": "Variational AutoEncoder (VAE)",
+      "description": "Replace standard AE with VAE — adds KL divergence loss, creates continuous smooth latent space",
+      "difficulty": "medium",
+      "wow_factor": 4
+    },
+    {
+      "name": "Latent Space Interpolation",
+      "description": "Interpolate between male and female latent vectors, decode each step → morphing animation",
+      "difficulty": "medium",
+      "wow_factor": 5
+    },
+    {
+      "name": "Cross-Domain Encoder-Decoder Swapping",
+      "description": "Train two separate autoencoders, swap decoders to force cross-domain reconstruction",
+      "difficulty": "hard",
+      "wow_factor": 5
+    },
+    {
+      "name": "Anomaly Detection Demo",
+      "description": "Apply confusion principle to medical imaging: train on healthy X-rays, flag pneumonia by reconstruction error",
+      "difficulty": "medium",
+      "wow_factor": 5
+    }
+  ],
+
+  "file_structure": {
+    "root": ["README.md", "main.py", "requirements.txt", ".gitignore", ".env.example"],
+    "venv": [".gitkeep"],
+    "src": ["__init__.py", "autoencoder.py", "trainer.py", "confusion.py", "visualizer.py", "visualizer_latent.py"],
+    "src/utils": ["__init__.py", "data_loader.py", "paths.py", "logger.py"],
+    "experiments": ["__init__.py", "experiment_a_faces.py", "experiment_b_fashion.py"],
+    "notebooks": ["L42_AutoEncoder_Colab.ipynb"],
+    "docs": ["PRD.md", "tasks.json"],
+    "results/experiment_a": [
+      "model_weights/autoencoder_final.h5",
+      "model_weights/encoder_final.h5",
+      "convergence_plot.png",
+      "in_distribution_reconstruction.png",
+      "ood_confusion_grid.png",
+      "distortion_highlight.png",
+      "error_distribution.png",
+      "latent_space_pca.png"
+    ],
+    "results/experiment_b": [
+      "model_weights/autoencoder_final.h5",
+      "model_weights/encoder_final.h5",
+      "convergence_plot.png",
+      "in_distribution_reconstruction.png",
+      "ood_confusion_grid.png",
+      "distortion_highlight.png",
+      "error_distribution.png",
+      "latent_space_pca.png"
+    ],
+    "logs": [".gitkeep", "config/log_config.json"]
+  },
+
+  "line_budget": {
+    "max_lines_per_file": 150,
+    "estimated_lines": {
+      "main.py": 80,
+      "src/autoencoder.py": 145,
+      "src/trainer.py": 130,
+      "src/confusion.py": 90,
+      "src/visualizer.py": 145,
+      "src/visualizer_latent.py": 90,
+      "src/utils/data_loader.py": 140,
+      "src/utils/paths.py": 50,
+      "src/utils/logger.py": 130,
+      "experiments/experiment_a_faces.py": 60,
+      "experiments/experiment_b_fashion.py": 60
+    },
+    "total_estimated_lines": 1120
+  },
+
+  "success_definition": {
+    "primary": "Person with no AI knowledge sees confusion grids and immediately understands: 'The network is trying to turn boots into sneakers'",
+    "quantitative": {
+      "experiment_a_in_dist_mse": "< 0.05",
+      "experiment_b_in_dist_bce": "< 0.02",
+      "ood_vs_indist_ratio": ">= 1.5x",
+      "visible_distortion_rate": ">= 75% of 20 test images"
+    },
+    "portfolio_standard": "README + results are impressive enough to include in a job application portfolio"
+  }
+}
