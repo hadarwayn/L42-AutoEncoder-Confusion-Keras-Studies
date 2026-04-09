@@ -1,9 +1,10 @@
 # L42 — AutoEncoder Confusion: Latent Space Distortion Study
 
-**Author:** Hadar Wayn
-**Course:** AI Developer Expert — Lesson 42
-**Instructor:** Dr. Yoram Segal
-**Framework:** Keras (TensorFlow backend)
+**Author:** Hadar Wayn  
+**Course:** AI Developer Expert — Lesson 42  
+**Instructor:** Dr. Yoram Segal  
+**Framework:** Keras (TensorFlow backend)  
+**GitHub:** [L42-AutoEncoder-Confusion-Keras-Studies](https://github.com/hadarwayn/L42-AutoEncoder-Confusion-Keras-Studies)
 
 ---
 
@@ -62,6 +63,16 @@ Think of it like a game of telephone:
 3. **Decoder**: Reads the code and tries to rebuild the original image — but it can only use patterns it learned during training
 
 When the input is something the network was trained on, reconstruction works great. When the input is something new (out-of-distribution), the decoder *hallucinates* its training patterns onto the unfamiliar input.
+
+### Our Architecture
+
+We use a **deep Convolutional AutoEncoder** with these key design choices:
+
+- **Double convolution blocks**: Each depth level has two Conv layers (not one), giving the network more capacity to learn fine details
+- **BatchNormalization** after every convolutional layer — prevents the blurry, featureless outputs that plagued the reference projects
+- **LeakyReLU activation** (slope 0.2) — prevents "dead neurons" that stop learning
+- **3 depth levels** with filters [64, 128, 256] — progressively extracts more complex features
+- **Bottleneck of 32 dimensions** — forces strong compression so the decoder must rely on learned patterns
 
 ---
 
@@ -161,17 +172,17 @@ When the input is something the network was trained on, reconstruction works gre
 
 | File | Description | Lines |
 |:-----|:------------|:-----:|
-| `main.py` | Entry point — runs both experiments | ~80 |
-| `src/autoencoder.py` | Convolutional AutoEncoder with BatchNorm | ~110 |
-| `src/trainer.py` | Training loop, checkpointing, hardware detection | ~120 |
-| `src/confusion.py` | OoD inference and error computation | ~75 |
-| `src/visualizer.py` | 5 visualization functions (convergence, grid, etc.) | ~130 |
-| `src/visualizer_latent.py` | PCA latent space visualization | ~80 |
-| `src/utils/data_loader.py` | Fashion-MNIST + LFW face dataset loading | ~145 |
-| `src/utils/paths.py` | Relative path utilities | ~45 |
-| `src/utils/logger.py` | Ring buffer logging system | ~100 |
-| `experiments/experiment_a_faces.py` | Experiment A runner | ~60 |
-| `experiments/experiment_b_fashion.py` | Experiment B runner | ~60 |
+| `main.py` | Entry point — runs both experiments | 77 |
+| `src/autoencoder.py` | Deep CNN AutoEncoder with double-conv blocks & BatchNorm | 119 |
+| `src/trainer.py` | Training loop, checkpointing, hardware detection | 138 |
+| `src/confusion.py` | OoD inference and error computation | 82 |
+| `src/visualizer.py` | 5 visualization functions (convergence, grid, etc.) | 150 |
+| `src/visualizer_latent.py` | PCA latent space visualization | 96 |
+| `src/utils/data_loader.py` | Fashion-MNIST + LFW face dataset loading | 131 |
+| `src/utils/paths.py` | Relative path utilities | 49 |
+| `src/utils/logger.py` | Ring buffer logging system | 116 |
+| `experiments/experiment_a_faces.py` | Experiment A runner | 71 |
+| `experiments/experiment_b_fashion.py` | Experiment B runner | 71 |
 
 All Python files are under 150 lines.
 
@@ -254,9 +265,9 @@ python main.py --batch-size 64    # Override batch size
 
 1. **BatchNormalization is essential** — Without BatchNorm after every convolutional layer, the network produces blurry, featureless gray blobs. This was the main failure in the reference projects.
 
-2. **Latent dimension controls the confusion effect** — Too small = everything is blurry. Too large = the decoder has enough capacity to reconstruct OoD images correctly (no confusion). 64 dimensions hits the sweet spot.
+2. **Latent dimension controls the confusion effect** — Too small = everything is blurry. Too large = the decoder has enough capacity to reconstruct OoD images correctly (no confusion). 32 dimensions hits the sweet spot for visible hallucination.
 
-3. **Reconstruction error is a powerful anomaly detector** — The 3.41x MSE ratio in Experiment B proves that OoD images are *measurably* harder to reconstruct. This same principle powers anomaly detection in medical imaging, cybersecurity, and manufacturing.
+3. **Reconstruction error is a powerful anomaly detector** — The 3.18x MSE ratio in Experiment B proves that OoD images are *measurably* harder to reconstruct. This same principle powers anomaly detection in medical imaging, cybersecurity, and manufacturing.
 
 ### Real-World Connections
 
